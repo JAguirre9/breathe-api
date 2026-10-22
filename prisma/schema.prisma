@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PATIENT
+  PSYCHOLOGIST
+  ADMIN
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  email         String   @unique
+  password      String
+  firstName     String
+  lastName      String?
+  role          UserRole
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+
+  patientProfile      PatientProfile?
+  psychologistProfile PsychologistProfile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PatientProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  preferredName String?
+  phoneCode     String?
+  phoneNumber   String?
+  age           Int?
+  feelings      String?
+  priorSessions String?
+  contactMethod String?
+}
+
+model PsychologistProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  license         String?
+  licenseCountry  String?
+  yearsExperience Int?
+  degree          String?
+  specialties     String?
+  languages       String?
+  motivation      String?
+  phoneCode       String?
+  phoneNumber     String?
+  contactMethod   String?
+}
