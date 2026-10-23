@@ -7,6 +7,7 @@ import { authRoutes } from "./routes/auth.js";
 
 const app = new Hono();
 const isProd = process.env.NODE_ENV === "production";
+console.log("NODE_ENV:", process.env.NODE_ENV, "isProd:", isProd);
 
 app.use(
   "*",
@@ -14,6 +15,8 @@ app.use(
     origin: isProd
       ? ["https://your-frontend-domain.com"]
       : ["http://localhost:8080", "http://localhost:5173"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
