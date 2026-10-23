@@ -2,18 +2,28 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { setCookie, getCookie, deleteCookie } from "hono/cookie";
 import { prisma } from "../lib/prisma.js";
-import { 
-	hashPassword, 
-	verifyPassword, 
-	findUserByEmail,
-	createToken,
-	verifyToken,
- } from "../lib/auth.js";
+import {
+  hashPassword,
+  verifyPassword,
+  findUserByEmail,
+  createToken,
+  verifyToken,
+} from "../lib/auth.js";
 
 export const authRoutes = new Hono();
 
+const isProd = process.env.NODE_ENV === "production";
+
+const sessionCookieOptions = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: "Lax" as const,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 7, // 7 days
+};
+
 function publicUser(user: {
-  id: string | number;
+  id: string;
   email: string;
   username: string;
   firstName: string;
@@ -54,8 +64,8 @@ authRoutes.post("/register", async (c) => {
       return c.json({ error: "Email already registered" }, 400);
     }
 
-    const username = 
-	data.email.split("@")[0] + "-" + Date.now().toString().slice(-4);
+    const username =
+      data.email.split("@")[0] + "-" + Date.now().toString().slice(-4);
     const hashed = await hashPassword(data.password);
 
     const user = await prisma.user.create({
@@ -66,29 +76,19 @@ authRoutes.post("/register", async (c) => {
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
-        patientProfile:
-          data.role === "PATIENT"
-            ? { create: {} }
-            : undefined,
+        patientProfile: data.role === "PATIENT" ? { create: {} } : undefined,
         psychologistProfile:
-          data.role === "PSYCHOLOGIST"
-            ? { create: {} }
-            : undefined,
-       },
+          data.role === "PSYCHOLOGIST" ? { create: {} } : undefined,
+      },
     });
 
-const token = await createToken({
+    const token = await createToken({
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-setCookie(c, "breathe_session", token, {
-      httpOnly: true,
-      sameSite: "Lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
+    setCookie(c, "breathe_session", token, sessionCookieOptions);
 
     return c.json({ user: publicUser(user) }, 201);
   } catch (err: any) {
@@ -120,16 +120,11 @@ authRoutes.post("/login", async (c) => {
       userId: user.id,
       email: user.email,
       role: user.role,
-    }); 
+    });
 
-    setCookie(c, "breathe_session", token, {
-      httpOnly: true,
-      sameSite: "Lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    }); 
+    setCookie(c, "breathe_session", token, sessionCookieOptions);
 
-   return c.json({ user: publicUser(user) });
+    return c.json({ user: publicUser(user) });
   } catch (err: any) {
     if (err.name === "ZodError") {
       return c.json({ error: "Invalid data", details: err.errors }, 400);
@@ -142,12 +137,13 @@ authRoutes.post("/login", async (c) => {
 // GET /auth/me
 authRoutes.get("/me", async (c) => {
   const token = getCookie(c, "breathe_session");
+
   if (!token) {
     return c.json({ user: null }, 401);
   }
 
   const payload = await verifyToken(token);
-  if (!payload) {
+  if (!payload?.userId) {
     return c.json({ user: null }, 401);
   }
 
@@ -156,6 +152,7 @@ authRoutes.get("/me", async (c) => {
     select: {
       id: true,
       email: true,
+      username: true,
       firstName: true,
       lastName: true,
       role: true,
@@ -166,13 +163,15 @@ authRoutes.get("/me", async (c) => {
     return c.json({ user: null }, 401);
   }
 
-  return c.json({ user });
+  return c.json({ user: publicUser(user) });
 });
 
 // POST /auth/logout
 authRoutes.post("/logout", async (c) => {
   deleteCookie(c, "breathe_session", {
     path: "/",
+    secure: isProd,
+    sameSite: "Lax",
   });
   return c.json({ ok: true });
 });
