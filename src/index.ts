@@ -4,6 +4,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
+import { intakeRoutes } from "./routes/intake.js";
+import { adminRoutes } from "./routes/admin.js";
 
 const app = new Hono();
 const isProd = process.env.NODE_ENV === "production";
@@ -23,6 +25,8 @@ app.use(
 
 app.route("/health", healthRoutes);
 app.route("/auth", authRoutes);
+app.route("/intake", intakeRoutes);
+app.route("/admin", adminRoutes);
 
 app.get("/", (c) => c.json({ message: "Breathe API is running" }));
 

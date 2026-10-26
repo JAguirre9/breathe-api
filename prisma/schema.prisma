@@ -23,6 +23,7 @@ model User {
   role          UserRole
   isActive      Boolean  @default(true)
   emailVerified Boolean  @default(false)
+  status UserStatus @default(PENDING)
 
   patientProfile      PatientProfile?
   psychologistProfile PsychologistProfile?
@@ -60,4 +61,10 @@ model PsychologistProfile {
   phoneCode       String?
   phoneNumber     String?
   contactMethod   String?
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  REJECTED
 }
