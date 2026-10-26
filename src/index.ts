@@ -6,10 +6,11 @@ import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { intakeRoutes } from "./routes/intake.js";
 import { adminRoutes } from "./routes/admin.js";
+import { journalRoutes } from "./routes/journal.js";
+import { sessionsRoutes } from "./routes/sessions.js";
 
 const app = new Hono();
 const isProd = process.env.NODE_ENV === "production";
-console.log("NODE_ENV:", process.env.NODE_ENV, "isProd:", isProd);
 
 app.use(
   "*",
@@ -27,6 +28,8 @@ app.route("/health", healthRoutes);
 app.route("/auth", authRoutes);
 app.route("/intake", intakeRoutes);
 app.route("/admin", adminRoutes);
+app.route("/journal", journalRoutes);
+app.route("/sessions", sessionsRoutes);
 
 app.get("/", (c) => c.json({ message: "Breathe API is running" }));
 

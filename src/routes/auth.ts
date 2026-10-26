@@ -106,7 +106,21 @@ authRoutes.post("/login", async (c) => {
     const body = await c.req.json();
     const data = loginSchema.parse(body);
 
-    const user = await findUserByEmail(data.email);
+    const user = await prisma.user.findUnique({
+      where: { email: data.email },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        password: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+        isActive: true,
+      },
+    });
+
     if (!user) {
       return c.json({ error: "Invalid email or password" }, 401);
     }
@@ -114,6 +128,11 @@ authRoutes.post("/login", async (c) => {
     const valid = await verifyPassword(data.password, user.password);
     if (!valid) {
       return c.json({ error: "Invalid email or password" }, 401);
+    }
+
+    // Pending patients cannot log in until activated
+    if (user.role === "PATIENT" && user.status !== "ACTIVE") {
+      return c.json({ error: "Account not active yet" }, 403);
     }
 
     const token = await createToken({
@@ -124,7 +143,16 @@ authRoutes.post("/login", async (c) => {
 
     setCookie(c, "breathe_session", token, sessionCookieOptions);
 
-    return c.json({ user: publicUser(user) });
+    return c.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+      },
+    });
   } catch (err: any) {
     if (err.name === "ZodError") {
       return c.json({ error: "Invalid data", details: err.errors }, 400);

@@ -50,6 +50,7 @@ intakeRoutes.post("/patient", async (c) => {
         firstName: data.firstName,
         lastName: data.lastName || null,
         role: "PATIENT",
+        status: "PENDING",
         patientProfile: {
           create: {
             preferredName: data.preferredName || null,

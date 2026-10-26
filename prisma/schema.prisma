@@ -13,20 +13,28 @@ enum UserRole {
   ADMIN
 }
 
+enum UserStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
 model User {
-  id            String   @id @default(cuid())
-  username      String   @unique
-  email         String   @unique
+  id            String     @id @default(cuid())
+  username      String     @unique
+  email         String     @unique
   password      String
   firstName     String
   lastName      String?
   role          UserRole
-  isActive      Boolean  @default(true)
-  emailVerified Boolean  @default(false)
-  status UserStatus @default(PENDING)
+  isActive      Boolean    @default(true)
+  emailVerified Boolean    @default(false)
+  status        UserStatus @default(PENDING)
 
   patientProfile      PatientProfile?
   psychologistProfile PsychologistProfile?
+  journalEntries      JournalEntry[]
+  sessions            Session[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -63,8 +71,30 @@ model PsychologistProfile {
   contactMethod   String?
 }
 
-enum UserStatus {
-  PENDING
-  ACTIVE
-  REJECTED
+model JournalEntry {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date  String // yyyy-mm-dd
+  title String
+  mood  Int // 1..5
+  text  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date       String // yyyy-mm-dd
+  time       String // HH:mm
+  title      String
+  specialist String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
