@@ -118,3 +118,17 @@ model Task {
 
   @@index([patientId])
 }
+
+model Resource {
+  id        String   @id @default(cuid())
+  titleEn   String
+  titleEs   String
+  bodyEn    String
+  bodyEs    String
+  minutes   Int      @default(5)
+  bgColor   String   @default("var(--note-3)")
+  sortOrder Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
