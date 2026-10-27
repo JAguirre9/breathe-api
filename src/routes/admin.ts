@@ -89,3 +89,29 @@ adminRoutes.get("/patients", async (c) => {
   });
   return c.json({ patients });
 });
+
+// GET /admin/patients/:id/journal
+adminRoutes.get("/patients/:id/journal", async (c) => {
+  try {
+    const id = c.req.param("id");
+
+    const patient = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+
+    if (!patient || patient.role !== "PATIENT") {
+      return c.json({ error: "Patient not found" }, 404);
+    }
+
+    const entries = await prisma.journalEntry.findMany({
+      where: { userId: id },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return c.json({ entries });
+  } catch (err) {
+    console.error(err);
+    return c.json({ error: "Server error" }, 500);
+  }
+});
