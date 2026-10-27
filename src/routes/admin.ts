@@ -79,3 +79,13 @@ adminRoutes.post("/patients/:id/activate", async (c) => {
     return c.json({ error: "Server error" }, 500);
   }
 });
+
+// GET /admin/patients -> active patients
+adminRoutes.get("/patients", async (c) => {
+  const patients = await prisma.user.findMany({
+    where: { role: "PATIENT", status: "ACTIVE" },
+    select: { id: true, firstName: true, lastName: true, email: true },
+    orderBy: { firstName: "asc" },
+  });
+  return c.json({ patients });
+});
