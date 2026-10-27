@@ -5,9 +5,6 @@ import { getCurrentUser } from "../lib/session.js";
 
 export const journalRoutes = new Hono();
 
-// temporary until Prisma types refresh
-const db = prisma as any;
-
 const entrySchema = z.object({
   date: z.string().min(8),
   title: z.string().min(1),
@@ -19,7 +16,7 @@ journalRoutes.get("/", async (c) => {
   const user = await getCurrentUser(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
-  const entries = await db.journalEntry.findMany({
+  const entries = await prisma.journalEntry.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
   });
@@ -35,7 +32,7 @@ journalRoutes.post("/", async (c) => {
     const body = await c.req.json();
     const data = entrySchema.parse(body);
 
-    const entry = await db.journalEntry.create({
+    const entry = await prisma.journalEntry.create({
       data: {
         userId: user.id,
         date: data.date,
@@ -64,12 +61,12 @@ journalRoutes.put("/:id", async (c) => {
     const body = await c.req.json();
     const data = entrySchema.parse(body);
 
-    const existing = await db.journalEntry.findUnique({ where: { id } });
+    const existing = await prisma.journalEntry.findUnique({ where: { id } });
     if (!existing || existing.userId !== user.id) {
       return c.json({ error: "Not found" }, 404);
     }
 
-    const entry = await db.journalEntry.update({
+    const entry = await prisma.journalEntry.update({
       where: { id },
       data: {
         date: data.date,
@@ -94,12 +91,12 @@ journalRoutes.delete("/:id", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
   const id = c.req.param("id");
-  const existing = await db.journalEntry.findUnique({ where: { id } });
+  const existing = await prisma.journalEntry.findUnique({ where: { id } });
 
   if (!existing || existing.userId !== user.id) {
     return c.json({ error: "Not found" }, 404);
   }
 
-  await db.journalEntry.delete({ where: { id } });
+  await prisma.journalEntry.delete({ where: { id } });
   return c.json({ ok: true });
 });
