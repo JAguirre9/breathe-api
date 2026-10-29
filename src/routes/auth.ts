@@ -2,13 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { setCookie, getCookie, deleteCookie } from "hono/cookie";
 import { prisma } from "../lib/prisma.js";
-import {
-  hashPassword,
-  verifyPassword,
-  findUserByEmail,
-  createToken,
-  verifyToken,
-} from "../lib/auth.js";
+import { verifyPassword, createToken, verifyToken } from "../lib/auth.js";
 
 export const authRoutes = new Hono();
 
@@ -40,64 +34,9 @@ function publicUser(user: {
   };
 }
 
-const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  firstName: z.string().min(1),
-  lastName: z.string().optional(),
-  role: z.enum(["PATIENT", "PSYCHOLOGIST"]).default("PATIENT"),
-});
-
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
-});
-
-// POST /auth/register
-authRoutes.post("/register", async (c) => {
-  try {
-    const body = await c.req.json();
-    const data = registerSchema.parse(body);
-
-    const existing = await findUserByEmail(data.email);
-    if (existing) {
-      return c.json({ error: "Email already registered" }, 400);
-    }
-
-    const username =
-      data.email.split("@")[0] + "-" + Date.now().toString().slice(-4);
-    const hashed = await hashPassword(data.password);
-
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        username,
-        password: hashed,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        role: data.role,
-        patientProfile: data.role === "PATIENT" ? { create: {} } : undefined,
-        psychologistProfile:
-          data.role === "PSYCHOLOGIST" ? { create: {} } : undefined,
-      },
-    });
-
-    const token = await createToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    setCookie(c, "breathe_session", token, sessionCookieOptions);
-
-    return c.json({ user: publicUser(user) }, 201);
-  } catch (err: any) {
-    if (err.name === "ZodError") {
-      return c.json({ error: "Invalid data", details: err.errors }, 400);
-    }
-    console.error(err);
-    return c.json({ error: "Server error" }, 500);
-  }
 });
 
 // POST /auth/login
@@ -130,8 +69,8 @@ authRoutes.post("/login", async (c) => {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
-    // Pending patients cannot log in until activated
-    if (user.role === "PATIENT" && user.status !== "ACTIVE") {
+    // Inactive, pending or rejected accounts cannot log in
+    if (!user.isActive || (user.role !== "ADMIN" && user.status !== "ACTIVE")) {
       return c.json({ error: "Account not active yet" }, 403);
     }
 

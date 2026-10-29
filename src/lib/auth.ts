@@ -2,9 +2,11 @@ import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "./prisma.js";
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "dev-secret-change-me"
-);
+const rawSecret = process.env.JWT_SECRET;
+if (!rawSecret || rawSecret.length < 32) {
+  throw new Error("JWT_SECRET must be set to a random value of 32+ characters");
+}
+const secret = new TextEncoder().encode(rawSecret);
 
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 10);

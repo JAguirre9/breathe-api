@@ -16,8 +16,8 @@ export async function getCurrentUser(c: Context) {
 
   if (!user || !user.isActive) return null;
 
-  const status = (user as { status?: string }).status;
-  if (user.role === "PATIENT" && status !== "ACTIVE") {
+  // Pending / rejected accounts can't act, whatever their role
+  if (user.role !== "ADMIN" && user.status !== "ACTIVE") {
     return null;
   }
 

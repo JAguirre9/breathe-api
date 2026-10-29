@@ -132,3 +132,17 @@ model Resource {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model MerchItem {
+  id        String   @id @default(cuid())
+  nameEn    String
+  nameEs    String
+  captionEn String?
+  captionEs String?
+  imageUrl  String?
+  bgColor   String?
+  sortOrder Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

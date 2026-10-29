@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { getCookie } from "hono/cookie";
 import { prisma } from "../lib/prisma.js";
-import { hashPassword, verifyToken } from "../lib/auth.js";
+import { hashPassword } from "../lib/auth.js";
+import { getCurrentUser } from "../lib/session.js";
 
 export const adminRoutes = new Hono();
 
@@ -10,16 +10,54 @@ const activateSchema = z.object({
   password: z.string().min(6),
 });
 
-// Only logged-in admins may use these routes
+// Only logged-in admins may use these routes (checked against the database)
 adminRoutes.use("*", async (c, next) => {
-  const token = getCookie(c, "breathe_session");
-  const payload = token ? await verifyToken(token) : null;
-
-  if (!payload || payload.role !== "ADMIN") {
+  const user = await getCurrentUser(c);
+  if (!user || user.role !== "ADMIN") {
     return c.json({ error: "Forbidden" }, 403);
   }
-
   await next();
+});
+
+// GET /admin/patients -> active patients (for the task picker)
+adminRoutes.get("/patients", async (c) => {
+  try {
+    const patients = await prisma.user.findMany({
+      where: { role: "PATIENT", status: "ACTIVE" },
+      select: { id: true, firstName: true, lastName: true, email: true },
+      orderBy: { firstName: "asc" },
+    });
+    return c.json({ patients });
+  } catch (err) {
+    console.error(err);
+    return c.json({ error: "Server error" }, 500);
+  }
+});
+
+// GET /admin/patients/:id/journal -> a patient's journal entries
+adminRoutes.get("/patients/:id/journal", async (c) => {
+  try {
+    const id = c.req.param("id");
+
+    const patient = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+
+    if (!patient || patient.role !== "PATIENT") {
+      return c.json({ error: "Patient not found" }, 404);
+    }
+
+    const entries = await prisma.journalEntry.findMany({
+      where: { userId: id },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return c.json({ entries });
+  } catch (err) {
+    console.error(err);
+    return c.json({ error: "Server error" }, 500);
+  }
 });
 
 // GET /admin/patients/pending
@@ -75,42 +113,6 @@ adminRoutes.post("/patients/:id/activate", async (c) => {
     if (err.name === "ZodError") {
       return c.json({ error: "Invalid data", details: err.errors }, 400);
     }
-    console.error(err);
-    return c.json({ error: "Server error" }, 500);
-  }
-});
-
-// GET /admin/patients -> active patients
-adminRoutes.get("/patients", async (c) => {
-  const patients = await prisma.user.findMany({
-    where: { role: "PATIENT", status: "ACTIVE" },
-    select: { id: true, firstName: true, lastName: true, email: true },
-    orderBy: { firstName: "asc" },
-  });
-  return c.json({ patients });
-});
-
-// GET /admin/patients/:id/journal
-adminRoutes.get("/patients/:id/journal", async (c) => {
-  try {
-    const id = c.req.param("id");
-
-    const patient = await prisma.user.findUnique({
-      where: { id },
-      select: { id: true, role: true },
-    });
-
-    if (!patient || patient.role !== "PATIENT") {
-      return c.json({ error: "Patient not found" }, 404);
-    }
-
-    const entries = await prisma.journalEntry.findMany({
-      where: { userId: id },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return c.json({ entries });
-  } catch (err) {
     console.error(err);
     return c.json({ error: "Server error" }, 500);
   }

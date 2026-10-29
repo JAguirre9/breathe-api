@@ -2,6 +2,9 @@ import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { secureHeaders } from "hono/secure-headers";
+import { bodyLimit } from "hono/body-limit";
+import { rateLimit } from "./lib/rate-limit.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { intakeRoutes } from "./routes/intake.js";
@@ -25,6 +28,19 @@ app.use(
     credentials: true,
   })
 );
+
+app.use("*", secureHeaders({ crossOriginResourcePolicy: false }));
+app.use(
+  "*",
+  bodyLimit({
+    maxSize: 100 * 1024, // 100 KB is plenty for this API
+    onError: (c) => c.json({ error: "Payload too large" }, 413),
+  })
+);
+
+// Brute-force / spam protection (counted per IP)
+app.use("/auth/login", rateLimit("login", 10, 15 * 60_000));
+app.use("/intake/*", rateLimit("intake", 5, 60 * 60_000));
 
 app.route("/health", healthRoutes);
 app.route("/auth", authRoutes);
