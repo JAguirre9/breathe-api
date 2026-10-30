@@ -117,3 +117,29 @@ adminRoutes.post("/patients/:id/activate", async (c) => {
     return c.json({ error: "Server error" }, 500);
   }
 });
+
+// GET /admin/patients/:id/sessions
+adminRoutes.get("/patients/:id/sessions", async (c) => {
+  try {
+    const id = c.req.param("id");
+
+    const patient = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+
+    if (!patient || patient.role !== "PATIENT") {
+      return c.json({ error: "Patient not found" }, 404);
+    }
+
+    const sessions = await prisma.session.findMany({
+      where: { userId: id },
+      orderBy: [{ date: "asc" }, { time: "asc" }],
+    });
+
+    return c.json({ sessions });
+  } catch (err) {
+    console.error(err);
+    return c.json({ error: "Server error" }, 500);
+  }
+});
