@@ -13,6 +13,7 @@ import { journalRoutes } from "./routes/journal.js";
 import { sessionsRoutes } from "./routes/sessions.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { contentRoutes } from "./routes/content.js";
+import { serveStatic } from "@hono/node-server/serve-static";
 
 const app = new Hono();
 const isProd = process.env.NODE_ENV === "production";
@@ -30,13 +31,16 @@ app.use(
 );
 
 app.use("*", secureHeaders({ crossOriginResourcePolicy: false }));
-app.use(
-  "*",
-  bodyLimit({
-    maxSize: 100 * 1024, // 100 KB is plenty for this API
+app.use("*", async (c, next) => {
+  // Allow larger payloads only for image upload
+  if (c.req.path.includes("/content/admin/merch/upload")) {
+    return next();
+  }
+  return bodyLimit({
+    maxSize: 100 * 1024,
     onError: (c) => c.json({ error: "Payload too large" }, 413),
-  })
-);
+  })(c, next);
+});
 
 // Brute-force / spam protection (counted per IP)
 app.use("/auth/login", rateLimit("login", 10, 15 * 60_000));
@@ -50,6 +54,7 @@ app.route("/journal", journalRoutes);
 app.route("/sessions", sessionsRoutes);
 app.route("/tasks", tasksRoutes);
 app.route("/content", contentRoutes);
+app.use("/uploads/*", serveStatic({root: "./",}));
 
 app.get("/", (c) => c.json({ message: "Breathe API is running" }));
 

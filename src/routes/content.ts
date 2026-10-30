@@ -3,6 +3,9 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getCurrentUser } from "../lib/session.js";
+import { randomUUID } from "crypto";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 
 export const contentRoutes = new Hono();
 
@@ -50,6 +53,50 @@ contentRoutes.use("*", async (c, next) => {
     return c.json({ error: "Forbidden" }, 403);
   }
   await next();
+});
+
+// POST /content/admin/merch/upload  (multipart field name: "file")
+contentRoutes.post("/admin/merch/upload", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+
+    if (!file || typeof file === "string") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      return c.json({ error: "Only JPEG, PNG, WebP or GIF allowed" }, 400);
+    }
+
+    const maxBytes = 5 * 1024 * 1024; // 5 MB
+    const buf = Buffer.from(await file.arrayBuffer());
+    if (buf.length > maxBytes) {
+      return c.json({ error: "File too large (max 5 MB)" }, 400);
+    }
+
+    const ext =
+      file.type === "image/png"
+        ? ".png"
+        : file.type === "image/webp"
+          ? ".webp"
+          : file.type === "image/gif"
+            ? ".gif"
+            : ".jpg";
+
+    const name = `${randomUUID()}${ext}`;
+    const dir = path.join(process.cwd(), "uploads");
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, name), buf);
+
+    // Public URL path (frontend will prefix with API origin if needed)
+    const imageUrl = `/uploads/${name}`;
+    return c.json({ imageUrl }, 201);
+  } catch (err) {
+    console.error(err);
+    return c.json({ error: "Upload failed" }, 500);
+  }
 });
 
 // Allows #hex, var(--x), rgb(), hsl(), oklch()... but no ; { } < >
@@ -119,16 +166,19 @@ const merchSchema = z.object({
   captionEn: z.string().max(300).nullable().optional(),
   captionEs: z.string().max(300).nullable().optional(),
   // Link to a photo hosted somewhere else. Must be https.
-  imageUrl: z
+    imageUrl: z
     .string()
     .max(500)
-    .url()
-    .refine((u) => u.startsWith("https://"), "Image link must start with https://")
+    .refine(
+      (u) =>
+        !u ||
+        u.startsWith("https://") ||
+        u.startsWith("/uploads/") ||
+        u.includes("/uploads/"),
+      "Image must be an uploaded file or an https link"
+    )
     .nullable()
     .optional(),
-  bgColor: colorSchema.nullable().optional(),
-  sortOrder: z.number().int().optional(),
-  published: z.boolean().optional(),
 });
 
 contentRoutes.get("/admin/merch", async (c) => {
