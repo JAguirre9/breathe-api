@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { setCookie, getCookie, deleteCookie } from "hono/cookie";
 import { prisma } from "../lib/prisma.js";
-import { verifyPassword, createToken, verifyToken } from "../lib/auth.js";
+import { verifyPassword, createToken, verifyToken, hashPassword } from "../lib/auth.js";
 
 export const authRoutes = new Hono();
 
@@ -37,6 +37,49 @@ function publicUser(user: {
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(6).max(100),
+});
+
+// POST /auth/change-password
+authRoutes.post("/change-password", async (c) => {
+  try {
+    const token = getCookie(c, "breathe_session");
+    if (!token) return c.json({ error: "Unauthorized" }, 401);
+
+    const payload = await verifyToken(token);
+    if (!payload?.userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const body = changePasswordSchema.parse(await c.req.json());
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, password: true },
+    });
+
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+    const valid = await verifyPassword(body.currentPassword, user.password);
+    if (!valid) {
+      return c.json({ error: "Current password is incorrect" }, 400);
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: await hashPassword(body.newPassword) },
+    });
+
+    return c.json({ ok: true });
+  } catch (err: any) {
+    if (err.name === "ZodError") {
+      return c.json({ error: "Invalid data", details: err.errors }, 400);
+    }
+    console.error(err);
+    return c.json({ error: "Server error" }, 500);
+  }
 });
 
 // POST /auth/login
