@@ -3,9 +3,6 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getCurrentUser } from "../lib/session.js";
-import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 
 export const contentRoutes = new Hono();
 
@@ -70,28 +67,14 @@ contentRoutes.post("/admin/merch/upload", async (c) => {
       return c.json({ error: "Only JPEG, PNG, WebP or GIF allowed" }, 400);
     }
 
-    const maxBytes = 5 * 1024 * 1024; // 5 MB
+    const maxBytes = 2 * 1024 * 1024; // 2 MB
     const buf = Buffer.from(await file.arrayBuffer());
     if (buf.length > maxBytes) {
-      return c.json({ error: "File too large (max 5 MB)" }, 400);
+      return c.json({ error: "File too large (max 2 MB)" }, 400);
     }
 
-    const ext =
-      file.type === "image/png"
-        ? ".png"
-        : file.type === "image/webp"
-          ? ".webp"
-          : file.type === "image/gif"
-            ? ".gif"
-            : ".jpg";
-
-    const name = `${randomUUID()}${ext}`;
-    const dir = path.join(process.cwd(), "uploads");
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, name), buf);
-
-    // Public URL path (frontend will prefix with API origin if needed)
-    const imageUrl = `/uploads/${name}`;
+    // Image stored in DB (imageUrl column), not on disk
+    const imageUrl = `data:${file.type};base64,${buf.toString("base64")}`;
     return c.json({ imageUrl }, 201);
   } catch (err) {
     console.error(err);
@@ -168,14 +151,14 @@ const merchSchema = z.object({
   // Link to a photo hosted somewhere else. Must be https.
     imageUrl: z
     .string()
-    .max(500)
+    .max(3_500_000)
     .refine(
       (u) =>
         !u ||
+        u.startsWith("data:image/") ||
         u.startsWith("https://") ||
-        u.startsWith("/uploads/") ||
-        u.includes("/uploads/"),
-      "Image must be an uploaded file or an https link"
+        u.startsWith("/uploads/"),
+      "Invalid image"
     )
     .nullable()
     .optional(),
