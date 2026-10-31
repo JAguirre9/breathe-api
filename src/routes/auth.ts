@@ -11,9 +11,9 @@ const isProd = process.env.NODE_ENV === "production";
 const sessionCookieOptions = {
   httpOnly: true,
   secure: isProd,
-  sameSite: "Lax" as const,
+  sameSite: isProd ? ("None" as const) : ("Lax" as const),
   path: "/",
-  maxAge: 60 * 60 * 24 * 7, // 7 days
+  maxAge: 60 * 60 * 24 * 7,
 };
 
 function publicUser(user: {
@@ -181,7 +181,7 @@ authRoutes.post("/logout", async (c) => {
   deleteCookie(c, "breathe_session", {
     path: "/",
     secure: isProd,
-    sameSite: "Lax",
+    sameSite: isProd ? "None" : "Lax",
   });
   return c.json({ ok: true });
 });
