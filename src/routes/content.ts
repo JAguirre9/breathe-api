@@ -148,8 +148,7 @@ const merchSchema = z.object({
   nameEs: z.string().min(1).max(120),
   captionEn: z.string().max(300).nullable().optional(),
   captionEs: z.string().max(300).nullable().optional(),
-  // Link to a photo hosted somewhere else. Must be https.
-    imageUrl: z
+  imageUrl: z
     .string()
     .max(3_500_000)
     .refine(
@@ -162,6 +161,10 @@ const merchSchema = z.object({
     )
     .nullable()
     .optional(),
+  bgColor: colorSchema.nullable().optional(),
+  sortOrder: z.number().int().optional(),
+  published: z.boolean().optional(),
+  price: z.number().int().min(0).nullable().optional(), // ← NEW (COP)
 });
 
 contentRoutes.get("/admin/merch", async (c) => {
