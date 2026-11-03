@@ -43,6 +43,16 @@ contentRoutes.get("/merch", async (c) => {
   }
 });
 
+// Public: service prices (override the defaults in the front)
+contentRoutes.get("/services", async (c) => {
+  try {
+    const services = await prisma.servicePrice.findMany();
+    return c.json({ services });
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
 // Admin only from here (checked against the database, not just the token)
 contentRoutes.use("*", async (c, next) => {
   const user = await getCurrentUser(c);
@@ -164,7 +174,7 @@ const merchSchema = z.object({
   bgColor: colorSchema.nullable().optional(),
   sortOrder: z.number().int().optional(),
   published: z.boolean().optional(),
-  price: z.number().int().min(0).nullable().optional(), // ← NEW (COP)
+  price: z.number().int().min(0).nullable().optional(), // COP
 });
 
 contentRoutes.get("/admin/merch", async (c) => {
@@ -204,6 +214,33 @@ contentRoutes.delete("/admin/merch/:id", async (c) => {
     const id = c.req.param("id");
     await prisma.merchItem.delete({ where: { id } });
     return c.json({ ok: true });
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+// ---------- Service prices (admin) ----------
+
+const serviceSlugs = ["individual", "couples", "group", "mindful"];
+
+const servicePriceSchema = z.object({
+  price: z.number().int().min(0).nullable().optional(),
+  duration: z.string().max(40).nullable().optional(),
+});
+
+contentRoutes.put("/admin/services/:slug", async (c) => {
+  try {
+    const slug = c.req.param("slug");
+    if (!serviceSlugs.includes(slug)) {
+      return c.json({ error: "Unknown service" }, 404);
+    }
+    const body = servicePriceSchema.parse(await c.req.json());
+    const service = await prisma.servicePrice.upsert({
+      where: { slug },
+      create: { slug, ...body },
+      update: body,
+    });
+    return c.json({ service });
   } catch (err) {
     return handleError(c, err);
   }

@@ -133,6 +133,13 @@ model Resource {
   updatedAt DateTime @updatedAt
 }
 
+model ServicePrice {
+  slug      String   @id   // "individual" | "couples" | "group" | "mindful"
+  price     Int?     // COP
+  duration  String?  
+  updatedAt DateTime @updatedAt
+}
+
 model MerchItem {
   id        String   @id @default(cuid())
   nameEn    String
