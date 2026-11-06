@@ -14,6 +14,7 @@ const sessionSchema = z.object({
   specialist: z.string().optional().nullable(),
 });
 
+// GET todas las sesiones del usuario
 sessionsRoutes.get("/", async (c) => {
   const user = await getCurrentUser(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
@@ -26,34 +27,7 @@ sessionsRoutes.get("/", async (c) => {
   return c.json({ sessions });
 });
 
-sessionsRoutes.post("/", async (c) => {
-  try {
-    const user = await getCurrentUser(c);
-    if (!user) return c.json({ error: "Unauthorized" }, 401);
-
-    const body = await c.req.json();
-    const data = sessionSchema.parse(body);
-
-    const session = await db.session.create({
-      data: {
-        userId: user.id,
-        date: data.date,
-        time: data.time,
-        title: data.title,
-        specialist: data.specialist || null,
-      },
-    });
-
-    return c.json({ session }, 201);
-  } catch (err: any) {
-    if (err.name === "ZodError") {
-      return c.json({ error: "Invalid data", details: err.errors }, 400);
-    }
-    console.error(err);
-    return c.json({ error: "Server error" }, 500);
-  }
-});
-
+// POST crear sesión (con validaciones)
 sessionsRoutes.post("/", async (c) => {
   try {
     const user = await getCurrentUser(c);
@@ -74,14 +48,15 @@ sessionsRoutes.post("/", async (c) => {
       );
     }
 
-    const existing = await db.session.findFirst({   
+    // 2. Solo una sesión por día
+    const existing = await db.session.findFirst({
       where: {
         userId: user.id,
         date: data.date,
       },
     });
 
-    if (existing) { 
+    if (existing) {
       return c.json(
         { error: "Ya tienes una sesión agendada para este día" },
         400
@@ -106,4 +81,21 @@ sessionsRoutes.post("/", async (c) => {
     console.error(err);
     return c.json({ error: "Server error" }, 500);
   }
+});
+
+// DELETE cancelar sesión  ← ESTE FALTABA
+sessionsRoutes.delete("/:id", async (c) => {
+  const user = await getCurrentUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+  const id = c.req.param("id");
+
+  const existing = await db.session.findUnique({ where: { id } });
+
+  if (!existing || existing.userId !== user.id) {
+    return c.json({ error: "Not found" }, 404);
+  }
+
+  await db.session.delete({ where: { id } });
+  return c.json({ ok: true });
 });
