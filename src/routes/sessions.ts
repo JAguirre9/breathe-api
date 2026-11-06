@@ -14,7 +14,16 @@ const sessionSchema = z.object({
   specialist: z.string().optional().nullable(),
 });
 
-// GET todas las sesiones del usuario
+function todayInColombia() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+// GETall sessions
 sessionsRoutes.get("/", async (c) => {
   const user = await getCurrentUser(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
@@ -27,7 +36,7 @@ sessionsRoutes.get("/", async (c) => {
   return c.json({ sessions });
 });
 
-// POST crear sesión (con validaciones)
+// POST create session
 sessionsRoutes.post("/", async (c) => {
   try {
     const user = await getCurrentUser(c);
@@ -36,19 +45,15 @@ sessionsRoutes.post("/", async (c) => {
     const body = await c.req.json();
     const data = sessionSchema.parse(body);
 
-    // 1. No permitir fechas en el pasado
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const selectedDate = new Date(data.date + "T12:00:00");
-    if (selectedDate < today) {
+    // can't schedule in the past 
+    if (data.date < todayInColombia()) {
       return c.json(
         { error: "No se puede agendar una sesión en el pasado" },
         400
       );
     }
 
-    // 2. Solo una sesión por día
+    // a session per day 
     const existing = await db.session.findFirst({
       where: {
         userId: user.id,
@@ -89,51 +94,12 @@ sessionsRoutes.delete("/:id", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
   const id = c.req.param("id");
-
   const existing = await db.session.findUnique({ where: { id } });
 
-    // 1. No permitir fechas en el pasado
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const selectedDate = new Date(data.date + "T12:00:00");
-    if (selectedDate < today) {
-      return c.json(
-        { error: "No se puede agendar una sesión en el pasado" },
-        400
-      );
-    }
-
-    const existing = await db.session.findFirst({   
-      where: {
-        userId: user.id,
-        date: data.date,
-      },
-    });
-
-    if (existing) { 
-      return c.json(
-        { error: "Ya tienes una sesión agendada para este día" },
-        400
-      );
-    }
-
-    const session = await db.session.create({
-      data: {
-        userId: user.id,
-        date: data.date,
-        time: data.time,
-        title: data.title,
-        specialist: data.specialist || null,
-      },
-    });
-
-    return c.json({ session }, 201);
-  } catch (err: any) {
-    if (err.name === "ZodError") {
-      return c.json({ error: "Invalid data", details: err.errors }, 400);
-    }
-    console.error(err);
-    return c.json({ error: "Server error" }, 500);
+  if (!existing || existing.userId !== user.id) {
+    return c.json({ error: "Not found" }, 404);
   }
+
+  await db.session.delete({ where: { id } });
+  return c.json({ ok: true });
 });
