@@ -14,6 +14,7 @@ const sessionSchema = z.object({
   specialist: z.string().optional().nullable(),
 });
 
+// GET todas las sesiones del usuario
 sessionsRoutes.get("/", async (c) => {
   const user = await getCurrentUser(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
@@ -26,6 +27,7 @@ sessionsRoutes.get("/", async (c) => {
   return c.json({ sessions });
 });
 
+// POST crear sesión (con validaciones)
 sessionsRoutes.post("/", async (c) => {
   try {
     const user = await getCurrentUser(c);
@@ -33,6 +35,33 @@ sessionsRoutes.post("/", async (c) => {
 
     const body = await c.req.json();
     const data = sessionSchema.parse(body);
+
+    // 1. No permitir fechas en el pasado
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const selectedDate = new Date(data.date + "T12:00:00");
+    if (selectedDate < today) {
+      return c.json(
+        { error: "No se puede agendar una sesión en el pasado" },
+        400
+      );
+    }
+
+    // 2. Solo una sesión por día
+    const existing = await db.session.findFirst({
+      where: {
+        userId: user.id,
+        date: data.date,
+      },
+    });
+
+    if (existing) {
+      return c.json(
+        { error: "Ya tienes una sesión agendada para este día" },
+        400
+      );
+    }
 
     const session = await db.session.create({
       data: {
@@ -54,13 +83,14 @@ sessionsRoutes.post("/", async (c) => {
   }
 });
 
-sessionsRoutes.post("/", async (c) => {
-  try {
-    const user = await getCurrentUser(c);
-    if (!user) return c.json({ error: "Unauthorized" }, 401);
+// DELETE session
+sessionsRoutes.delete("/:id", async (c) => {
+  const user = await getCurrentUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
 
-    const body = await c.req.json();
-    const data = sessionSchema.parse(body);
+  const id = c.req.param("id");
+
+  const existing = await db.session.findUnique({ where: { id } });
 
     // 1. No permitir fechas en el pasado
     const today = new Date();
