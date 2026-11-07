@@ -49,6 +49,8 @@ model PatientProfile {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   preferredName String?
+  patientID     String?
+  patientIDType String?
   phoneCode     String?
   phoneNumber   String?
   age           Int?
